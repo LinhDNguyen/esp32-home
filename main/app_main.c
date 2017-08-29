@@ -17,8 +17,18 @@
 #include "lwip/dns.h"
 #include "lwip/netdb.h"
 
+#include "driver/gpio.h"
+
 #include "esp_log.h"
 #include "mqtt.h"
+
+#define GPIO_OUTPUT_IO_0    18
+#define GPIO_OUTPUT_IO_1    19
+#define GPIO_OUTPUT_IO_2    23
+#define GPIO_OUTPUT_IO_3    25
+#define GPIO_OUTPUT_PIN_SEL  ((1<<GPIO_OUTPUT_IO_0) | (1<<GPIO_OUTPUT_IO_1) | (1<<GPIO_OUTPUT_IO_2) | (1<<GPIO_OUTPUT_IO_3))
+#define RED_TOPIC "home/light/red"
+#define GREEN_TOPIC "home/light/green"
 
 const char *MQTT_TAG = "MQTT_SAMPLE";
 
@@ -28,64 +38,68 @@ const static int CONNECTED_BIT = BIT0;
 void connected_cb(void *self, void *params)
 {
     mqtt_client *client = (mqtt_client *)self;
-    mqtt_subscribe(client, "/test", 0);
-    mqtt_publish(client, "/test", "howdy!", 6, 0, 0);
+    ESP_LOGI(MQTT_TAG, "[APP] Connected!!!");
+    mqtt_subscribe(client, RED_TOPIC, 0);
+    mqtt_subscribe(client, GREEN_TOPIC, 0);
 }
 void disconnected_cb(void *self, void *params)
 {
-
+    ESP_LOGI(MQTT_TAG, "[APP] Disconnected!!!");
 }
 void reconnect_cb(void *self, void *params)
 {
-
+    ESP_LOGI(MQTT_TAG, "[APP] Reconnect!!!");
 }
 void subscribe_cb(void *self, void *params)
 {
-    ESP_LOGI(MQTT_TAG, "[APP] Subscribe ok, test publish msg");
-    mqtt_client *client = (mqtt_client *)self;
-    mqtt_publish(client, "/test", "abcde", 5, 0, 0);
+    // mqtt_event_data_t *event_data = (mqtt_event_data_t *)params;
+    // ESP_LOGI(MQTT_TAG, "[APP] Subscribed %s", event_data->topic);
 }
 
 void publish_cb(void *self, void *params)
 {
-
+    // mqtt_event_data_t *event_data = (mqtt_event_data_t *)params;
+    // ESP_LOGI(MQTT_TAG, "[APP] Published %s", event_data->topic);
 }
 void data_cb(void *self, void *params)
 {
     mqtt_client *client = (mqtt_client *)self;
     mqtt_event_data_t *event_data = (mqtt_event_data_t *)params;
 
+    ESP_LOGI(MQTT_TAG, "[APP] data received: %s -> %s:%d", event_data->topic, event_data->data, event_data->data_offset);
     if(event_data->data_offset == 0) {
+        int gpio = -1;
+        int gpio2 = -1;
+        if (memcmp(event_data->topic, RED_TOPIC, event_data->topic_length) == 0) {
+            // RED LED
+            gpio = GPIO_OUTPUT_IO_0;
+            gpio2 = GPIO_OUTPUT_IO_2;
+        } else if (memcmp(event_data->topic, GREEN_TOPIC, event_data->topic_length) == 0) {
+            // GREEN LED
+            gpio = GPIO_OUTPUT_IO_1;
+            gpio2 = GPIO_OUTPUT_IO_3;
+        } else {
+            ESP_LOGE(MQTT_TAG, "Topic %s is wrong", event_data->topic);
+            return;
+        }
 
-        char *topic = malloc(event_data->topic_length + 1);
-        memcpy(topic, event_data->topic, event_data->topic_length);
-        topic[event_data->topic_length] = 0;
-        ESP_LOGI(MQTT_TAG, "[APP] Publish topic: %s", topic);
-        free(topic);
+        int val = 0;
+        if (memcmp(event_data->data, "ON", event_data->data_length) == 0) {
+            val = 1;
+        }
+
+        ESP_LOGI(MQTT_TAG, "[APP] gpio %d -> %d", gpio, val);
+        gpio_set_level(gpio, val);
+        gpio_set_level(gpio2, val);
     }
-
-    // char *data = malloc(event_data->data_length + 1);
-    // memcpy(data, event_data->data, event_data->data_length);
-    // data[event_data->data_length] = 0;
-    ESP_LOGI(MQTT_TAG, "[APP] Publish data[%d/%d bytes]",
-             event_data->data_length + event_data->data_offset,
-             event_data->data_total_length);
-    // data);
-
-    // free(data);
-
 }
 
 mqtt_settings settings = {
-    .host = "test.mosquitto.org",
-#if defined(CONFIG_MQTT_SECURITY_ON)
-    .port = 8883, // encrypted
-#else
-    .port = 1883, // unencrypted
-#endif
-    .client_id = "mqtt_client_id",
-    .username = "user",
-    .password = "pass",
+    .host = "192.168.1.196",
+    .port = 8883,
+    .client_id = "esp32_client",
+    .username = "ha",
+    .password = "danhlinh",
     .clean_session = 0,
     .keepalive = 120,
     .lwt_topic = "/lwt",
@@ -94,13 +108,11 @@ mqtt_settings settings = {
     .lwt_retain = 0,
     .connected_cb = connected_cb,
     .disconnected_cb = disconnected_cb,
-    .reconnect_cb = reconnect_cb,
     .subscribe_cb = subscribe_cb,
     .publish_cb = publish_cb,
-    .data_cb = data_cb
+    .data_cb = data_cb,
+    .auto_reconnect = 1,
 };
-
-
 
 static esp_err_t wifi_event_handler(void *ctx, system_event_t *event)
 {
@@ -148,9 +160,28 @@ static void wifi_conn_init(void)
 
 void app_main()
 {
-    ESP_LOGI(MQTT_TAG, "[APP] Startup..");
+    ESP_LOGI(MQTT_TAG, "[APP] Startup..MQTT LED");
     ESP_LOGI(MQTT_TAG, "[APP] Free memory: %d bytes", system_get_free_heap_size());
     ESP_LOGI(MQTT_TAG, "[APP] SDK version: %s, Build time: %s", system_get_sdk_version(), BUID_TIME);
+
+    gpio_config_t io_conf;
+    //disable interrupt
+    io_conf.intr_type = GPIO_PIN_INTR_DISABLE;
+    //set as output mode
+    io_conf.mode = GPIO_MODE_OUTPUT;
+    //bit mask of the pins that you want to set,e.g.GPIO18/19
+    io_conf.pin_bit_mask = GPIO_OUTPUT_PIN_SEL;
+    //disable pull-down mode
+    io_conf.pull_down_en = 0;
+    //disable pull-up mode
+    io_conf.pull_up_en = 0;
+    //configure GPIO with the given settings
+    gpio_config(&io_conf);
+
+    gpio_set_level(GPIO_OUTPUT_IO_0, 1);
+    gpio_set_level(GPIO_OUTPUT_IO_1, 1);
+    gpio_set_level(GPIO_OUTPUT_IO_2, 1);
+    gpio_set_level(GPIO_OUTPUT_IO_3, 1);
 
     nvs_flash_init();
     wifi_conn_init();

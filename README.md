@@ -4,7 +4,7 @@
 
 ## Prerequire
 
-- ESP32 compiler: 
+- ESP32 compiler:
 - ESP-IDF: https://github.com/espressif/esp-idf
 
 ## Compile
@@ -15,16 +15,16 @@ Run command `make menuconfig` to change SERIAL PORT configuration and the option
 
 `make && make flash`
 
-## Usage 
+## Usage
 
 ```c
  mqtt_settings settings = {
     .host = "192.168.0.1",  // or domain, ex: "google.com",
     .port = 1883,
-    .client_id = "mqtt_client_id", 
+    .client_id = "mqtt_client_id",
     .username = "user",
     .password = "pass",
-    .clean_session = 0, 
+    .clean_session = 0,
     .keepalive = 120, //second
     .lwt_topic = "/lwt",    // = "" for disable lwt, will don't care other options
     .lwt_msg = "offline",
@@ -33,8 +33,8 @@ Run command `make menuconfig` to change SERIAL PORT configuration and the option
     .connected_cb = connected_cb, // trigger when client connected to broker with valid infomations
     .disconnected_cb = disconnected_cb, //trigger when client disconnect from broker
     .reconnect_cb = reconnect_cb, //trigger when client reconnect - not implement yet
-    .subscribe_cb = subscribe_cb, //trigger when client subscribe a topic successful 
-    .publish_cb = publish_cb, //trigger when client publish data to channel successful 
+    .subscribe_cb = subscribe_cb, //trigger when client subscribe a topic successful
+    .publish_cb = publish_cb, //trigger when client publish data to channel successful
     .data_cb = data_cb //trigger when client receive data from channel has subscribed
 };
 
@@ -52,13 +52,18 @@ void data_cb(void *self, void *params)
 
 typedef struct mqtt_event_data_t
 {
-  char* topic;  //point to topic 
+  char* topic;  //point to topic
   char* data; //point to data
   uint16_t topic_length;
   uint16_t data_length; //current packet length
   uint16_t data_offset; //current packet offset
   uint16_t data_total_length; //total packet length
 } mqtt_event_data_t;
+```
+
+## flash:
+```
+python D:\works\esp32\code\esp-idf\components\esptool_py\esptool\esptool.py --chip esp32 --port "COM7" --baud 921600 --before "default_reset" --after "hard_reset" write_flash -z --flash_mode "dio" --flash_freq "40m" --flash_size detect 0x1000 D:\works\esp32\code\esp32-mqtt\build\bootloader\bootloader.bin 0x10000 D:\works\esp32\code\esp32-mqtt\build\esp32-audio-code-idf.bin 0x8000 D:\works\esp32\code\esp32-mqtt\build\partitions_singleapp.bin
 ```
 
 ## Todo list
@@ -70,11 +75,12 @@ typedef struct mqtt_event_data_t
 ## Progress:
 
 - [x] Can connect, subscribe, support queue for subscribe, support lwt msg
-- [x] Direct send keepalive packet 
-- [x] Can publish 
+- [x] Direct send keepalive packet
+- [x] Can publish
 - [x] Can receive and process publish qos 0
-- [x] Can receive and process publish qos 1 and 2 
+- [x] Can receive and process publish qos 1 and 2
 - [ ] Implement all events
+
 
 ## License
 

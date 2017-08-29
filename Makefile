@@ -3,6 +3,6 @@
 # project subdirectory.
 #
 VERBOSE = 1
-PROJECT_NAME := esp32-audio-code-idf
-include $(IDF_PATH)/make/project.mk
+PROJECT_NAME := esp32-mqtt
 
+include $(IDF_PATH)/make/project.mk
